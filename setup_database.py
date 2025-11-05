@@ -4,7 +4,9 @@ Initializes all database tables
 """
 import sqlite3
 from pathlib import Path
-from config.config import DATABASE_PATH
+
+# Define database path directly
+DATABASE_PATH = Path(__file__).parent / 'data' / 'football.db'
 
 def setup_database():
     """Create all database tables"""
