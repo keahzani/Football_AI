@@ -70,6 +70,13 @@ if 'db' not in st.session_state:
     st.session_state.db = DatabaseManager()
 if 'last_update' not in st.session_state:
     st.session_state.last_update = None
+if 'db_initialized' not in st.session_state:
+    # Check if database is initialized
+    try:
+        stats = st.session_state.db.execute_query("SELECT COUNT(*) FROM matches")
+        st.session_state.db_initialized = True
+    except:
+        st.session_state.db_initialized = False
 
 def load_models():
     """Load prediction models"""
@@ -226,6 +233,32 @@ def main():
     # Header
     st.markdown('<h1 class="main-header">⚽ Football Match Predictor</h1>', unsafe_allow_html=True)
     st.markdown("### AI-Powered Match Predictions for Top European Leagues")
+    
+    # Check if database is initialized
+    if not st.session_state.db_initialized:
+        st.error("⚠️ Database not initialized! Please wait while we set up...")
+        st.info("This happens on first deployment. The setup process is running in the background.")
+        st.markdown("""
+        **What's happening:**
+        1. Creating database tables
+        2. Downloading historical match data (7,000+ matches)
+        3. Training ML models
+        
+        **This takes 10-15 minutes on first deploy.** Please refresh the page in a few minutes!
+        """)
+        
+        # Show manual setup button
+        if st.button("🔧 Try Manual Setup"):
+            with st.spinner("Setting up database..."):
+                try:
+                    from setup_database import setup_database
+                    setup_database()
+                    st.success("✅ Database initialized! Please use the Update Database button to download data.")
+                    st.session_state.db_initialized = True
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Setup failed: {e}")
+        return
     
     # Sidebar
     with st.sidebar:
