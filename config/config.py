@@ -24,7 +24,7 @@ LEAGUES = {
         'code': 'E0',
         'api_id': 39,
         'avg_goals': 2.8,
-        'seasons': ['2021', '2022', '2023', '2024']
+        'seasons': ['2122', '2223', '2324', '2425']
     },
     'la_liga': {
         'name': 'La Liga',
@@ -32,7 +32,7 @@ LEAGUES = {
         'code': 'SP1',
         'api_id': 140,
         'avg_goals': 2.7,
-        'seasons': ['2021', '2022', '2023', '2024']
+        'seasons': ['2122', '2223', '2324', '2425']
     },
     'bundesliga': {
         'name': 'Bundesliga',
@@ -40,7 +40,7 @@ LEAGUES = {
         'code': 'D1',
         'api_id': 78,
         'avg_goals': 3.1,
-        'seasons': ['2021', '2022', '2023', '2024']
+        'seasons': ['2122', '2223', '2324', '2425']
     },
     'serie_a': {
         'name': 'Serie A',
@@ -48,7 +48,7 @@ LEAGUES = {
         'code': 'I1',
         'api_id': 135,
         'avg_goals': 2.6,
-        'seasons': ['2021', '2022', '2023', '2024']
+        'seasons': ['2122', '2223', '2324', '2425']
     },
     'ligue_1': {
         'name': 'Ligue 1',
@@ -56,7 +56,7 @@ LEAGUES = {
         'code': 'F1',
         'api_id': 61,
         'avg_goals': 2.7,
-        'seasons': ['2021', '2022', '2023', '2024']
+        'seasons': ['2122', '2223', '2324', '2425']
     }
 }
 
