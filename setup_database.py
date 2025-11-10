@@ -135,7 +135,11 @@ def setup_database():
         ('La Liga', 'Spain'),
         ('Bundesliga', 'Germany'),
         ('Serie A', 'Italy'),
-        ('Ligue 1', 'France')
+        ('Ligue 1', 'France'),
+        ('Scottish Premiership', 'Scotland'),
+        ('Primeira Liga', 'Portugal'),
+        ('Eredivisie', 'Netherlands'),
+        ('Belgian Pro League', 'Belgium')
     ]
     
     for league_name, country in leagues:

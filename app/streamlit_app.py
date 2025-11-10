@@ -308,7 +308,7 @@ def main():
             """)
     
     # Main content
-    tab1, tab2, tab3 = st.tabs(["🎯 Predict Match", "📈 Statistics", "ℹ️ About"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🎯 Predict Match", "📈 Statistics", "🏆 League Standings", "ℹ️ About"])
     
     with tab1:
         st.header("Match Prediction")
@@ -515,6 +515,179 @@ def main():
             2. **Feature Engineering**: 30+ calculated metrics
             3. **Machine Learning**: XGBoost models
             4. **Predictions**: Win/Draw/Loss probabilities
+            """)
+        
+        with col2:
+            st.subheader("🏆 Supported Leagues")
+            for league_info in LEAGUES.values():
+                st.markdown(f"- **{league_info['name']}** ({league_info['country']})")
+            
+            st.subheader("⚠️ Important Notes")
+            st.markdown("""
+            - **Update weekly** for best results
+            - **Check team news** before betting
+            - **52% accuracy is excellent** for football
+            - **Use as guidance**, not guarantee
+            - **Bet responsibly**
+            """)
+        
+        st.divider()
+        
+        st.info("""
+        💡 **Pro Tip**: Combine AI predictions with your own knowledge of:
+        - Team injuries and suspensions
+        - Manager tactics
+        - Team motivation
+        - Weather conditions
+        """)
+    
+    # Tab 3: League Standings
+    with tab3:
+        st.header("🏆 Live League Standings")
+        st.markdown("Current 2024-25 season standings from API-Football")
+        
+        # Import API client
+        try:
+            from scrapers.api_client import APIFootballClient
+            api_client = APIFootballClient()
+            
+            # Check API status
+            with st.expander("📊 API Status"):
+                status = api_client.check_api_status()
+                if 'error' not in status:
+                    st.success("✅ API Connected")
+                    if 'response' in status:
+                        st.info(f"Requests remaining: Check your dashboard")
+                else:
+                    st.error(f"⚠️ API Error: {status['error']}")
+            
+            # League selector
+            league_names = list(LEAGUES.keys())
+            league_display_names = [LEAGUES[key]['name'] for key in league_names]
+            
+            selected_display = st.selectbox(
+                "Select League",
+                league_display_names,
+                key="standings_league"
+            )
+            
+            # Get selected league key
+            selected_key = league_names[league_display_names.index(selected_display)]
+            selected_league = LEAGUES[selected_key]
+            
+            if st.button("🔄 Fetch Latest Standings", type="primary"):
+                with st.spinner(f"Fetching {selected_league['name']} standings..."):
+                    standings_df = api_client.get_standings_dataframe(
+                        selected_league['api_id'],
+                        season=2024
+                    )
+                    
+                    if standings_df is not None:
+                        st.success(f"✅ Loaded {len(standings_df)} teams")
+                        
+                        # Display standings table
+                        st.subheader(f"📊 {selected_league['name']} - 2024/25 Season")
+                        
+                        # Style the dataframe
+                        styled_df = standings_df[['Rank', 'Team', 'Played', 'Won', 'Drawn', 
+                                                   'Lost', 'GF', 'GA', 'GD', 'Points', 'Form']]
+                        
+                        # Add color coding for positions
+                        def highlight_positions(row):
+                            if row['Rank'] <= 4:
+                                return ['background-color: #d4edda'] * len(row)  # Champions League (green)
+                            elif row['Rank'] <= 6:
+                                return ['background-color: #d1ecf1'] * len(row)  # Europa (blue)
+                            elif row['Rank'] >= len(standings_df) - 2:
+                                return ['background-color: #f8d7da'] * len(row)  # Relegation (red)
+                            return [''] * len(row)
+                        
+                        # Display with styling
+                        st.dataframe(
+                            styled_df.style.apply(highlight_positions, axis=1),
+                            use_container_width=True,
+                            height=600
+                        )
+                        
+                        # Legend
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.markdown("🟢 **Champions League** (Top 4)")
+                        with col2:
+                            st.markdown("🔵 **Europa League** (5-6)")
+                        with col3:
+                            st.markdown("🔴 **Relegation** (Bottom 3)")
+                        
+                        # Form guide explanation
+                        st.divider()
+                        st.subheader("📈 Form Guide")
+                        st.markdown("""
+                        **Last 5 matches**: W = Win, D = Draw, L = Loss
+                        - Most recent match is on the right
+                        - Look for teams with strong recent form (WWWWW)
+                        """)
+                        
+                        # Top performers
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.metric("🥇 Top Team", standings_df.iloc[0]['Team'], 
+                                     f"{standings_df.iloc[0]['Points']} pts")
+                        
+                        with col2:
+                            top_scorer_team = standings_df.loc[standings_df['GF'].idxmax()]
+                            st.metric("⚽ Most Goals", top_scorer_team['Team'], 
+                                     f"{top_scorer_team['GF']} goals")
+                        
+                        with col3:
+                            best_defense_team = standings_df.loc[standings_df['GA'].idxmin()]
+                            st.metric("🛡️ Best Defense", best_defense_team['Team'], 
+                                     f"{best_defense_team['GA']} conceded")
+                    
+                    else:
+                        st.error(f"❌ Could not fetch standings for {selected_league['name']}")
+                        st.info("This might be due to:")
+                        st.markdown("""
+                        - API rate limit reached (100 requests/day on free tier)
+                        - League not available for 2024-25 season yet
+                        - Network connectivity issues
+                        
+                        Try again in a few minutes or check the API dashboard.
+                        """)
+        
+        except ImportError:
+            st.error("⚠️ API client not available. Please ensure api_client.py is in the scrapers folder.")
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
+            st.info("Make sure your API key is configured correctly in config.py")
+    
+    # Tab 4: About
+    with tab4:
+        st.header("ℹ️ About This System")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("🤖 How It Works")
+            st.markdown("""
+            This system uses **XGBoost machine learning** to predict match outcomes:
+            
+            1. **Data Collection**: Historical match data from 2021-2024
+            2. **Feature Engineering**: 30+ statistical features per match
+            3. **Model Training**: Separate models for each league
+            4. **Prediction**: Analyzes team form, statistics, and patterns
+            
+            **Accuracy**: 42-52% (excellent for football prediction!)
+            """)
+            
+            st.subheader("📊 Key Features")
+            st.markdown("""
+            - Team form (last 5 matches)
+            - Home/Away performance
+            - Goals scored/conceded
+            - Shots accuracy
+            - Disciplinary record
+            - Head-to-head history
             """)
         
         with col2:
