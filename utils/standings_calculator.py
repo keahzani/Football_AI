@@ -1,29 +1,22 @@
 """
-Standings Calculator
-Calculates league standings from match data in the database
-No external API required - works entirely from local data
+Live League Standings Calculator
+Calculates current standings from database matches
 """
-
+import sqlite3
 import pandas as pd
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
-import sqlite3
 
 class StandingsCalculator:
-    """Calculate league standings from database match data"""
+    """Calculate live league standings from database"""
     
-    def __init__(self, db_path: str):
-        """
-        Initialize calculator with database path
+    def __init__(self, db_path: str = "data/football.db"):
+        self.db_path = Path(db_path)
         
-        Args:
-            db_path: Path to SQLite database
+    def get_current_season(self, league_name: str) -> str:
         """
-        self.db_path = db_path
-    
-    def get_current_season(self, league_name: str) -> Optional[str]:
-        """
-        Get the most recent season for a league
+        Get the most recent season with matches for a league
         
         Args:
             league_name: Name of the league
@@ -32,163 +25,183 @@ class StandingsCalculator:
             Season code (e.g., '2526' for 2025-26)
         """
         conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
         
+        # Get the most recent season that has matches
         query = """
-        SELECT season, COUNT(*) as match_count, MAX(date) as latest_date
+        SELECT DISTINCT m.season
         FROM matches m
+        JOIN teams ht ON m.home_team_id = ht.team_id
+        JOIN teams at ON m.away_team_id = at.team_id
         JOIN leagues l ON m.league_id = l.league_id
         WHERE l.league_name = ?
-        GROUP BY season
-        ORDER BY season DESC
+        ORDER BY m.season DESC
         LIMIT 1
         """
         
-        result = pd.read_sql_query(query, conn, params=(league_name,))
+        cursor.execute(query, (league_name,))
+        result = cursor.fetchone()
         conn.close()
         
-        if not result.empty:
-            return result.iloc[0]['season']
-        return None
+        return result[0] if result else '2526'
     
-    def calculate_standings(self, league_name: str, season: Optional[str] = None) -> Optional[pd.DataFrame]:
+    def format_season_display(self, season_code: str) -> str:
+        """
+        Format season code for display
+        
+        Args:
+            season_code: Season code like '2526'
+            
+        Returns:
+            Formatted string like '2025-26'
+        """
+        if len(season_code) == 4:
+            year1 = f"20{season_code[:2]}"
+            year2 = season_code[2:]
+            return f"{year1}-{year2}"
+        else:
+            # Handle '2021' format
+            return f"{season_code[:4]}-{int(season_code[:4]) + 1}"
+    
+    def get_available_seasons(self, league_name: str) -> List[str]:
+        """
+        Get all available seasons for a league
+        
+        Args:
+            league_name: Name of the league
+            
+        Returns:
+            List of season codes
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        query = """
+        SELECT DISTINCT m.season
+        FROM matches m
+        JOIN leagues l ON m.league_id = l.league_id
+        WHERE l.league_name = ?
+        ORDER BY m.season DESC
+        """
+        
+        cursor.execute(query, (league_name,))
+        seasons = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        
+        return seasons
+    
+    def calculate_standings(self, league_name: str, season: Optional[str] = None) -> pd.DataFrame:
         """
         Calculate standings for a league and season
         
         Args:
             league_name: Name of the league
-            season: Season code (if None, uses most recent)
+            season: Season code (if None, uses current season)
             
         Returns:
-            DataFrame with standings or None
+            DataFrame with standings
         """
-        conn = sqlite3.connect(self.db_path)
-        
-        # Get current season if not specified
         if season is None:
             season = self.get_current_season(league_name)
-            if season is None:
-                conn.close()
-                return None
         
-        # Get all matches for this league and season
+        conn = sqlite3.connect(self.db_path)
+        
+        # Get all matches for the league and season
         query = """
         SELECT 
             m.match_id,
-            m.date,
-            m.season,
+            m.match_date,
             ht.team_name as home_team,
             at.team_name as away_team,
             m.home_goals,
             m.away_goals,
             m.result
         FROM matches m
-        JOIN leagues l ON m.league_id = l.league_id
         JOIN teams ht ON m.home_team_id = ht.team_id
         JOIN teams at ON m.away_team_id = at.team_id
+        JOIN leagues l ON m.league_id = l.league_id
         WHERE l.league_name = ? AND m.season = ?
-        ORDER BY m.date
+        ORDER BY m.match_date DESC
         """
         
-        matches_df = pd.read_sql_query(query, conn, params=(league_name, season))
+        df = pd.read_sql_query(query, conn, params=(league_name, season))
         conn.close()
         
-        if matches_df.empty:
-            return None
+        if df.empty:
+            return pd.DataFrame()
         
-        # Initialize standings dictionary
-        teams = set(matches_df['home_team'].unique()) | set(matches_df['away_team'].unique())
-        standings = {}
+        # Calculate standings
+        teams = set(df['home_team'].unique()) | set(df['away_team'].unique())
+        standings = []
         
         for team in teams:
-            standings[team] = {
+            home_matches = df[df['home_team'] == team]
+            away_matches = df[df['away_team'] == team]
+            
+            # Calculate stats
+            played = len(home_matches) + len(away_matches)
+            
+            # Home stats
+            home_wins = len(home_matches[home_matches['result'] == 'H'])
+            home_draws = len(home_matches[home_matches['result'] == 'D'])
+            home_losses = len(home_matches[home_matches['result'] == 'A'])
+            home_gf = home_matches['home_goals'].sum()
+            home_ga = home_matches['away_goals'].sum()
+            
+            # Away stats
+            away_wins = len(away_matches[away_matches['result'] == 'A'])
+            away_draws = len(away_matches[away_matches['result'] == 'D'])
+            away_losses = len(away_matches[away_matches['result'] == 'H'])
+            away_gf = away_matches['away_goals'].sum()
+            away_ga = away_matches['home_goals'].sum()
+            
+            # Total stats
+            wins = home_wins + away_wins
+            draws = home_draws + away_draws
+            losses = home_losses + away_losses
+            gf = int(home_gf + away_gf)
+            ga = int(home_ga + away_ga)
+            gd = gf - ga
+            points = wins * 3 + draws
+            
+            # Calculate form (last 5 matches)
+            team_matches = pd.concat([
+                home_matches.assign(is_home=True),
+                away_matches.assign(is_home=False)
+            ]).sort_values('match_date', ascending=False).head(5)
+            
+            form = []
+            for _, match in team_matches.iterrows():
+                if match['is_home']:
+                    if match['result'] == 'H':
+                        form.append('W')
+                    elif match['result'] == 'D':
+                        form.append('D')
+                    else:
+                        form.append('L')
+                else:
+                    if match['result'] == 'A':
+                        form.append('W')
+                    elif match['result'] == 'D':
+                        form.append('D')
+                    else:
+                        form.append('L')
+            
+            standings.append({
                 'Team': team,
-                'Played': 0,
-                'Won': 0,
-                'Drawn': 0,
-                'Lost': 0,
-                'GF': 0,
-                'GA': 0,
-                'GD': 0,
-                'Points': 0,
-                'Home_W': 0,
-                'Home_D': 0,
-                'Home_L': 0,
-                'Away_W': 0,
-                'Away_D': 0,
-                'Away_L': 0,
-                'Form': [],
-                'Last_5_Points': 0
-            }
+                'Played': played,
+                'Won': wins,
+                'Drawn': draws,
+                'Lost': losses,
+                'GF': gf,
+                'GA': ga,
+                'GD': gd,
+                'Points': points,
+                'Form': ''.join(form)
+            })
         
-        # Process each match
-        for _, match in matches_df.iterrows():
-            home_team = match['home_team']
-            away_team = match['away_team']
-            home_goals = match['home_goals']
-            away_goals = match['away_goals']
-            result = match['result']
-            
-            # Update matches played
-            standings[home_team]['Played'] += 1
-            standings[away_team]['Played'] += 1
-            
-            # Update goals
-            standings[home_team]['GF'] += home_goals
-            standings[home_team]['GA'] += away_goals
-            standings[away_team]['GF'] += away_goals
-            standings[away_team]['GA'] += home_goals
-            
-            # Update results and points
-            if result == 'H':  # Home win
-                standings[home_team]['Won'] += 1
-                standings[home_team]['Points'] += 3
-                standings[home_team]['Home_W'] += 1
-                standings[home_team]['Form'].append('W')
-                
-                standings[away_team]['Lost'] += 1
-                standings[away_team]['Away_L'] += 1
-                standings[away_team]['Form'].append('L')
-                
-            elif result == 'A':  # Away win
-                standings[away_team]['Won'] += 1
-                standings[away_team]['Points'] += 3
-                standings[away_team]['Away_W'] += 1
-                standings[away_team]['Form'].append('W')
-                
-                standings[home_team]['Lost'] += 1
-                standings[home_team]['Home_L'] += 1
-                standings[home_team]['Form'].append('L')
-                
-            else:  # Draw
-                standings[home_team]['Drawn'] += 1
-                standings[home_team]['Points'] += 1
-                standings[home_team]['Home_D'] += 1
-                standings[home_team]['Form'].append('D')
-                
-                standings[away_team]['Drawn'] += 1
-                standings[away_team]['Points'] += 1
-                standings[away_team]['Away_D'] += 1
-                standings[away_team]['Form'].append('D')
-        
-        # Calculate goal difference and format form
-        for team in standings:
-            standings[team]['GD'] = standings[team]['GF'] - standings[team]['GA']
-            
-            # Get last 5 results
-            form_list = standings[team]['Form'][-5:]
-            standings[team]['Form'] = ''.join(form_list) if form_list else '-'
-            
-            # Calculate last 5 points
-            last_5_results = standings[team]['Form']
-            standings[team]['Last_5_Points'] = (
-                last_5_results.count('W') * 3 + 
-                last_5_results.count('D') * 1
-            )
-        
-        # Convert to DataFrame
-        standings_df = pd.DataFrame.from_dict(standings, orient='index')
-        
-        # Sort by Points, GD, GF
+        # Create DataFrame and sort by points, then GD, then GF
+        standings_df = pd.DataFrame(standings)
         standings_df = standings_df.sort_values(
             by=['Points', 'GD', 'GF'], 
             ascending=[False, False, False]
@@ -199,98 +212,229 @@ class StandingsCalculator:
         
         return standings_df
     
-    def get_home_standings(self, league_name: str, season: Optional[str] = None) -> Optional[pd.DataFrame]:
+    def get_home_standings(self, league_name: str, season: Optional[str] = None) -> pd.DataFrame:
         """Get home-only standings"""
-        full_standings = self.calculate_standings(league_name, season)
+        if season is None:
+            season = self.get_current_season(league_name)
         
-        if full_standings is None:
-            return None
-        
-        # Create home standings
-        home_df = full_standings[['Team', 'Home_W', 'Home_D', 'Home_L']].copy()
-        home_df['Played'] = home_df['Home_W'] + home_df['Home_D'] + home_df['Home_L']
-        home_df['Points'] = home_df['Home_W'] * 3 + home_df['Home_D']
-        
-        home_df = home_df.sort_values('Points', ascending=False).reset_index(drop=True)
-        home_df.insert(0, 'Rank', range(1, len(home_df) + 1))
-        
-        return home_df
-    
-    def get_away_standings(self, league_name: str, season: Optional[str] = None) -> Optional[pd.DataFrame]:
-        """Get away-only standings"""
-        full_standings = self.calculate_standings(league_name, season)
-        
-        if full_standings is None:
-            return None
-        
-        # Create away standings
-        away_df = full_standings[['Team', 'Away_W', 'Away_D', 'Away_L']].copy()
-        away_df['Played'] = away_df['Away_W'] + away_df['Away_D'] + away_df['Away_L']
-        away_df['Points'] = away_df['Away_W'] * 3 + away_df['Away_D']
-        
-        away_df = away_df.sort_values('Points', ascending=False).reset_index(drop=True)
-        away_df.insert(0, 'Rank', range(1, len(away_df) + 1))
-        
-        return away_df
-    
-    def get_form_table(self, league_name: str, season: Optional[str] = None) -> Optional[pd.DataFrame]:
-        """Get standings based on last 5 matches only"""
-        full_standings = self.calculate_standings(league_name, season)
-        
-        if full_standings is None:
-            return None
-        
-        # Sort by last 5 points
-        form_df = full_standings[['Team', 'Form', 'Last_5_Points']].copy()
-        form_df = form_df.sort_values('Last_5_Points', ascending=False).reset_index(drop=True)
-        form_df.insert(0, 'Rank', range(1, len(form_df) + 1))
-        
-        return form_df
-    
-    def get_season_label(self, season_code: str) -> str:
-        """
-        Convert season code to readable label
-        
-        Args:
-            season_code: e.g., '2526'
-            
-        Returns:
-            e.g., '2025-26'
-        """
-        if len(season_code) == 4:
-            year1 = '20' + season_code[:2]
-            year2 = season_code[2:]
-            return f"{year1}-{year2}"
-        return season_code
-    
-    def get_all_available_seasons(self, league_name: str) -> List[Tuple[str, str]]:
-        """
-        Get all available seasons for a league
-        
-        Args:
-            league_name: Name of the league
-            
-        Returns:
-            List of (season_code, season_label) tuples
-        """
         conn = sqlite3.connect(self.db_path)
         
         query = """
-        SELECT DISTINCT season, COUNT(*) as matches
+        SELECT 
+            ht.team_name as team,
+            m.home_goals as gf,
+            m.away_goals as ga,
+            m.result
         FROM matches m
+        JOIN teams ht ON m.home_team_id = ht.team_id
         JOIN leagues l ON m.league_id = l.league_id
-        WHERE l.league_name = ?
-        GROUP BY season
-        ORDER BY season DESC
+        WHERE l.league_name = ? AND m.season = ?
         """
         
-        result = pd.read_sql_query(query, conn, params=(league_name,))
+        df = pd.read_sql_query(query, conn, params=(league_name, season))
         conn.close()
         
-        seasons = []
-        for _, row in result.iterrows():
-            season_code = row['season']
-            season_label = self.get_season_label(season_code)
-            seasons.append((season_code, season_label))
+        if df.empty:
+            return pd.DataFrame()
         
-        return seasons
+        teams = df['team'].unique()
+        standings = []
+        
+        for team in teams:
+            team_matches = df[df['team'] == team]
+            played = len(team_matches)
+            wins = len(team_matches[team_matches['result'] == 'H'])
+            draws = len(team_matches[team_matches['result'] == 'D'])
+            losses = len(team_matches[team_matches['result'] == 'A'])
+            gf = int(team_matches['gf'].sum())
+            ga = int(team_matches['ga'].sum())
+            gd = gf - ga
+            points = wins * 3 + draws
+            
+            standings.append({
+                'Team': team,
+                'Played': played,
+                'Won': wins,
+                'Drawn': draws,
+                'Lost': losses,
+                'GF': gf,
+                'GA': ga,
+                'GD': gd,
+                'Points': points
+            })
+        
+        standings_df = pd.DataFrame(standings)
+        standings_df = standings_df.sort_values(
+            by=['Points', 'GD', 'GF'],
+            ascending=[False, False, False]
+        ).reset_index(drop=True)
+        
+        standings_df.insert(0, 'Rank', range(1, len(standings_df) + 1))
+        
+        return standings_df
+    
+    def get_away_standings(self, league_name: str, season: Optional[str] = None) -> pd.DataFrame:
+        """Get away-only standings"""
+        if season is None:
+            season = self.get_current_season(league_name)
+        
+        conn = sqlite3.connect(self.db_path)
+        
+        query = """
+        SELECT 
+            at.team_name as team,
+            m.away_goals as gf,
+            m.home_goals as ga,
+            m.result
+        FROM matches m
+        JOIN teams at ON m.away_team_id = at.team_id
+        JOIN leagues l ON m.league_id = l.league_id
+        WHERE l.league_name = ? AND m.season = ?
+        """
+        
+        df = pd.read_sql_query(query, conn, params=(league_name, season))
+        conn.close()
+        
+        if df.empty:
+            return pd.DataFrame()
+        
+        teams = df['team'].unique()
+        standings = []
+        
+        for team in teams:
+            team_matches = df[df['team'] == team]
+            played = len(team_matches)
+            wins = len(team_matches[team_matches['result'] == 'A'])
+            draws = len(team_matches[team_matches['result'] == 'D'])
+            losses = len(team_matches[team_matches['result'] == 'H'])
+            gf = int(team_matches['gf'].sum())
+            ga = int(team_matches['ga'].sum())
+            gd = gf - ga
+            points = wins * 3 + draws
+            
+            standings.append({
+                'Team': team,
+                'Played': played,
+                'Won': wins,
+                'Drawn': draws,
+                'Lost': losses,
+                'GF': gf,
+                'GA': ga,
+                'GD': gd,
+                'Points': points
+            })
+        
+        standings_df = pd.DataFrame(standings)
+        standings_df = standings_df.sort_values(
+            by=['Points', 'GD', 'GF'],
+            ascending=[False, False, False]
+        ).reset_index(drop=True)
+        
+        standings_df.insert(0, 'Rank', range(1, len(standings_df) + 1))
+        
+        return standings_df
+    
+    def get_form_table(self, league_name: str, season: Optional[str] = None, num_matches: int = 5) -> pd.DataFrame:
+        """
+        Get standings based only on recent form (last N matches)
+        
+        Args:
+            league_name: Name of the league
+            season: Season code
+            num_matches: Number of recent matches to consider
+            
+        Returns:
+            DataFrame with form-based standings
+        """
+        if season is None:
+            season = self.get_current_season(league_name)
+        
+        conn = sqlite3.connect(self.db_path)
+        
+        query = """
+        SELECT 
+            m.match_date,
+            ht.team_name as home_team,
+            at.team_name as away_team,
+            m.home_goals,
+            m.away_goals,
+            m.result
+        FROM matches m
+        JOIN teams ht ON m.home_team_id = ht.team_id
+        JOIN teams at ON m.away_team_id = at.team_id
+        JOIN leagues l ON m.league_id = l.league_id
+        WHERE l.league_name = ? AND m.season = ?
+        ORDER BY m.match_date DESC
+        """
+        
+        df = pd.read_sql_query(query, conn, params=(league_name, season))
+        conn.close()
+        
+        if df.empty:
+            return pd.DataFrame()
+        
+        teams = set(df['home_team'].unique()) | set(df['away_team'].unique())
+        form_standings = []
+        
+        for team in teams:
+            # Get last N matches for this team
+            team_matches = pd.concat([
+                df[df['home_team'] == team].assign(is_home=True),
+                df[df['away_team'] == team].assign(is_home=False)
+            ]).sort_values('match_date', ascending=False).head(num_matches)
+            
+            if len(team_matches) == 0:
+                continue
+            
+            points = 0
+            wins = 0
+            draws = 0
+            losses = 0
+            gf = 0
+            ga = 0
+            
+            for _, match in team_matches.iterrows():
+                if match['is_home']:
+                    gf += match['home_goals']
+                    ga += match['away_goals']
+                    if match['result'] == 'H':
+                        wins += 1
+                        points += 3
+                    elif match['result'] == 'D':
+                        draws += 1
+                        points += 1
+                    else:
+                        losses += 1
+                else:
+                    gf += match['away_goals']
+                    ga += match['home_goals']
+                    if match['result'] == 'A':
+                        wins += 1
+                        points += 3
+                    elif match['result'] == 'D':
+                        draws += 1
+                        points += 1
+                    else:
+                        losses += 1
+            
+            form_standings.append({
+                'Team': team,
+                'Played': len(team_matches),
+                'Won': wins,
+                'Drawn': draws,
+                'Lost': losses,
+                'GF': int(gf),
+                'GA': int(ga),
+                'GD': int(gf - ga),
+                'Points': points
+            })
+        
+        form_df = pd.DataFrame(form_standings)
+        form_df = form_df.sort_values(
+            by=['Points', 'GD', 'GF'],
+            ascending=[False, False, False]
+        ).reset_index(drop=True)
+        
+        form_df.insert(0, 'Rank', range(1, len(form_df) + 1))
+        
+        return form_df
