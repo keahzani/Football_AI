@@ -28,7 +28,7 @@ LEAGUES = {
         'code': 'E0',
         'api_id': 39,
         'avg_goals': 2.8,
-        'seasons': ['2324', '2425', '2526']  # Last 3 seasons including current 2025-26
+        'seasons': ['2021', '2122', '2223', '2324', '2425', '2526']
     },
     'la_liga': {
         'name': 'La Liga',
@@ -36,7 +36,7 @@ LEAGUES = {
         'code': 'SP1',
         'api_id': 140,
         'avg_goals': 2.7,
-        'seasons': ['2324', '2425', '2526']
+        'seasons': ['2021', '2122', '2223', '2324', '2425', '2526']
     },
     'bundesliga': {
         'name': 'Bundesliga',
@@ -44,7 +44,7 @@ LEAGUES = {
         'code': 'D1',
         'api_id': 78,
         'avg_goals': 3.1,
-        'seasons': ['2324', '2425', '2526']
+        'seasons': ['2021', '2122', '2223', '2324', '2425', '2526']
     },
     'serie_a': {
         'name': 'Serie A',
@@ -52,7 +52,7 @@ LEAGUES = {
         'code': 'I1',
         'api_id': 135,
         'avg_goals': 2.6,
-        'seasons': ['2324', '2425', '2526']
+        'seasons': ['2021', '2122', '2223', '2324', '2425', '2526']
     },
     'ligue_1': {
         'name': 'Ligue 1',
@@ -60,7 +60,7 @@ LEAGUES = {
         'code': 'F1',
         'api_id': 61,
         'avg_goals': 2.7,
-        'seasons': ['2324', '2425', '2526']
+        'seasons': ['2021', '2122', '2223', '2324', '2425', '2526']
     },
     'scottish_premiership': {
         'name': 'Scottish Premiership',
@@ -68,7 +68,7 @@ LEAGUES = {
         'code': 'SC0',
         'api_id': 179,
         'avg_goals': 2.9,
-        'seasons': ['2324', '2425', '2526']
+        'seasons': ['2021', '2122', '2223', '2324', '2425', '2526']
     },
     'primeira_liga': {
         'name': 'Primeira Liga',
@@ -76,7 +76,7 @@ LEAGUES = {
         'code': 'P1',
         'api_id': 94,
         'avg_goals': 2.6,
-        'seasons': ['2324', '2425', '2526']
+        'seasons': ['2021', '2122', '2223', '2324', '2425', '2526']
     },
     'eredivisie': {
         'name': 'Eredivisie',
@@ -84,7 +84,7 @@ LEAGUES = {
         'code': 'N1',
         'api_id': 88,
         'avg_goals': 3.2,
-        'seasons': ['2324', '2425', '2526']
+        'seasons': ['2021', '2122', '2223', '2324', '2425', '2526']
     },
     'pro_league': {
         'name': 'Belgian Pro League',
@@ -92,7 +92,7 @@ LEAGUES = {
         'code': 'B1',
         'api_id': 144,
         'avg_goals': 2.8,
-        'seasons': ['2324', '2425', '2526']
+        'seasons': ['2021', '2122', '2223', '2324', '2425', '2526']
     },
     'eredivisie': {
         'name': 'Eredivisie',
@@ -100,7 +100,7 @@ LEAGUES = {
         'code': 'N1',
         'api_id': 88,
         'avg_goals': 3.2,
-        'seasons': ['2122', '2223', '2324', '2425']
+        'seasons': ['2021', '2122', '2223', '2324', '2425', '2526']
     },
     'pro_league': {
         'name': 'Belgian Pro League',
@@ -108,7 +108,7 @@ LEAGUES = {
         'code': 'B1',
         'api_id': 144,
         'avg_goals': 2.8,
-        'seasons': ['2122', '2223', '2324', '2425']
+        'seasons': ['2021', '2122', '2223', '2324', '2425', '2526']
     }
 }
 
