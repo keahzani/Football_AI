@@ -39,6 +39,7 @@ def setup_database():
             team_id INTEGER PRIMARY KEY AUTOINCREMENT,
             team_name TEXT NOT NULL,
             league_id INTEGER,
+            country TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (league_id) REFERENCES leagues (league_id),
             UNIQUE(team_name, league_id)
@@ -74,6 +75,21 @@ def setup_database():
             FOREIGN KEY (league_id) REFERENCES leagues (league_id),
             FOREIGN KEY (home_team_id) REFERENCES teams (team_id),
             FOREIGN KEY (away_team_id) REFERENCES teams (team_id)
+        )
+    """)
+    
+    # Create odds table
+    print("Creating odds table...")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS odds (
+            odds_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            match_id INTEGER,
+            bookmaker TEXT,
+            home_odds REAL,
+            draw_odds REAL,
+            away_odds REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (match_id) REFERENCES matches (match_id)
         )
     """)
     
