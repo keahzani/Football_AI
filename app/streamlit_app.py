@@ -544,22 +544,13 @@ def main():
     # Tab 3: League Standings
     with tab3:
         st.header("🏆 Live League Standings")
-        st.markdown("Current 2024-25 season standings from API-Football")
+        st.markdown("**Real-time standings calculated from your database** - Updates when you download new data!")
         
-        # Import API client
         try:
-            from scrapers.api_client import APIFootballClient
-            api_client = APIFootballClient()
+            from utils.standings_calculator import StandingsCalculator
+            from config.config import DB_PATH
             
-            # Check API status
-            with st.expander("📊 API Status"):
-                status = api_client.check_api_status()
-                if 'error' not in status:
-                    st.success("✅ API Connected")
-                    if 'response' in status:
-                        st.info(f"Requests remaining: Check your dashboard")
-                else:
-                    st.error(f"⚠️ API Error: {status['error']}")
+            calculator = StandingsCalculator(str(DB_PATH))
             
             # League selector
             league_names = list(LEAGUES.keys())
@@ -574,37 +565,61 @@ def main():
             # Get selected league key
             selected_key = league_names[league_display_names.index(selected_display)]
             selected_league = LEAGUES[selected_key]
+            league_name = selected_league['name']
             
-            if st.button("🔄 Fetch Latest Standings", type="primary"):
-                with st.spinner(f"Fetching {selected_league['name']} standings..."):
-                    standings_df = api_client.get_standings_dataframe(
-                        selected_league['api_id'],
-                        season=2024
-                    )
+            # Get available seasons
+            available_seasons = calculator.get_all_available_seasons(league_name)
+            
+            if available_seasons:
+                # Show season selector
+                season_labels = [label for _, label in available_seasons]
+                selected_season_label = st.selectbox(
+                    "Select Season",
+                    season_labels,
+                    index=0,  # Default to most recent
+                    key="season_selector"
+                )
+                
+                # Get the corresponding season code
+                selected_season_code = [code for code, label in available_seasons if label == selected_season_label][0]
+                
+                # Show data info
+                with st.expander("ℹ️ Data Information"):
+                    st.info(f"""
+                    **League:** {league_name}  
+                    **Season:** {selected_season_label}  
+                    **Source:** Your local database  
+                    **Last Update:** Data refreshes when you run download updates
+                    """)
+                
+                # Fetch and display standings
+                with st.spinner(f"Calculating {league_name} standings..."):
+                    standings_df = calculator.calculate_standings(league_name, selected_season_code)
                     
-                    if standings_df is not None:
-                        st.success(f"✅ Loaded {len(standings_df)} teams")
+                    if standings_df is not None and not standings_df.empty:
+                        st.success(f"✅ Loaded {len(standings_df)} teams • {int(standings_df['Played'].mean())} games played per team")
                         
-                        # Display standings table
-                        st.subheader(f"📊 {selected_league['name']} - 2024/25 Season")
+                        # Main standings table
+                        st.subheader(f"📊 {league_name} - {selected_season_label} Season")
                         
-                        # Style the dataframe
-                        styled_df = standings_df[['Rank', 'Team', 'Played', 'Won', 'Drawn', 
-                                                   'Lost', 'GF', 'GA', 'GD', 'Points', 'Form']]
+                        # Prepare display dataframe
+                        display_df = standings_df[['Rank', 'Team', 'Played', 'Won', 'Drawn', 
+                                                   'Lost', 'GF', 'GA', 'GD', 'Points', 'Form']].copy()
                         
                         # Add color coding for positions
                         def highlight_positions(row):
-                            if row['Rank'] <= 4:
+                            rank = row['Rank']
+                            if rank <= 4:
                                 return ['background-color: #d4edda'] * len(row)  # Champions League (green)
-                            elif row['Rank'] <= 6:
+                            elif rank <= 6:
                                 return ['background-color: #d1ecf1'] * len(row)  # Europa (blue)
-                            elif row['Rank'] >= len(standings_df) - 2:
+                            elif rank >= len(standings_df) - 2:
                                 return ['background-color: #f8d7da'] * len(row)  # Relegation (red)
                             return [''] * len(row)
                         
                         # Display with styling
                         st.dataframe(
-                            styled_df.style.apply(highlight_positions, axis=1),
+                            display_df.style.apply(highlight_positions, axis=1),
                             use_container_width=True,
                             height=600
                         )
@@ -618,46 +633,115 @@ def main():
                         with col3:
                             st.markdown("🔴 **Relegation** (Bottom 3)")
                         
-                        # Form guide explanation
                         st.divider()
-                        st.subheader("📈 Form Guide")
-                        st.markdown("""
-                        **Last 5 matches**: W = Win, D = Draw, L = Loss
-                        - Most recent match is on the right
-                        - Look for teams with strong recent form (WWWWW)
-                        """)
                         
-                        # Top performers
-                        col1, col2, col3 = st.columns(3)
+                        # Additional tables in tabs
+                        sub_tab1, sub_tab2, sub_tab3, sub_tab4 = st.tabs([
+                            "📈 Top Performers", 
+                            "🏠 Home Form", 
+                            "✈️ Away Form",
+                            "🔥 Recent Form"
+                        ])
                         
-                        with col1:
-                            st.metric("🥇 Top Team", standings_df.iloc[0]['Team'], 
-                                     f"{standings_df.iloc[0]['Points']} pts")
+                        with sub_tab1:
+                            st.subheader("📈 Top Performers")
+                            
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.metric("🥇 Top Team", 
+                                         standings_df.iloc[0]['Team'], 
+                                         f"{standings_df.iloc[0]['Points']} pts")
+                                st.caption(f"Played: {standings_df.iloc[0]['Played']} | GD: {standings_df.iloc[0]['GD']:+d}")
+                            
+                            with col2:
+                                top_scorer_team = standings_df.loc[standings_df['GF'].idxmax()]
+                                st.metric("⚽ Best Attack", 
+                                         top_scorer_team['Team'], 
+                                         f"{top_scorer_team['GF']} goals")
+                                st.caption(f"{top_scorer_team['GF'] / top_scorer_team['Played']:.2f} goals per game")
+                            
+                            with col3:
+                                best_defense_team = standings_df.loc[standings_df['GA'].idxmin()]
+                                st.metric("🛡️ Best Defense", 
+                                         best_defense_team['Team'], 
+                                         f"{best_defense_team['GA']} conceded")
+                                st.caption(f"{best_defense_team['GA'] / best_defense_team['Played']:.2f} conceded per game")
+                            
+                            st.divider()
+                            
+                            # Form guide explanation
+                            st.markdown("""
+                            **Form Guide**: Last 5 matches (most recent on right)
+                            - **W** = Win | **D** = Draw | **L** = Loss
+                            - Look for teams with strong recent form (WWWWW, WWDWW, etc.)
+                            """)
                         
-                        with col2:
-                            top_scorer_team = standings_df.loc[standings_df['GF'].idxmax()]
-                            st.metric("⚽ Most Goals", top_scorer_team['Team'], 
-                                     f"{top_scorer_team['GF']} goals")
+                        with sub_tab2:
+                            st.subheader("🏠 Home Form Table")
+                            home_df = calculator.get_home_standings(league_name, selected_season_code)
+                            if home_df is not None:
+                                st.dataframe(
+                                    home_df[['Rank', 'Team', 'Played', 'Home_W', 'Home_D', 'Home_L', 'Points']].rename(columns={
+                                        'Home_W': 'Won',
+                                        'Home_D': 'Drawn',
+                                        'Home_L': 'Lost'
+                                    }),
+                                    use_container_width=True,
+                                    height=500
+                                )
+                                st.caption("💡 Shows performance in home matches only")
                         
-                        with col3:
-                            best_defense_team = standings_df.loc[standings_df['GA'].idxmin()]
-                            st.metric("🛡️ Best Defense", best_defense_team['Team'], 
-                                     f"{best_defense_team['GA']} conceded")
+                        with sub_tab3:
+                            st.subheader("✈️ Away Form Table")
+                            away_df = calculator.get_away_standings(league_name, selected_season_code)
+                            if away_df is not None:
+                                st.dataframe(
+                                    away_df[['Rank', 'Team', 'Played', 'Away_W', 'Away_D', 'Away_L', 'Points']].rename(columns={
+                                        'Away_W': 'Won',
+                                        'Away_D': 'Drawn',
+                                        'Away_L': 'Lost'
+                                    }),
+                                    use_container_width=True,
+                                    height=500
+                                )
+                                st.caption("💡 Shows performance in away matches only")
+                        
+                        with sub_tab4:
+                            st.subheader("🔥 Recent Form (Last 5 Matches)")
+                            form_df = calculator.get_form_table(league_name, selected_season_code)
+                            if form_df is not None:
+                                st.dataframe(
+                                    form_df,
+                                    use_container_width=True,
+                                    height=500
+                                )
+                                st.caption("💡 Rankings based on points from last 5 matches only")
                     
                     else:
-                        st.error(f"❌ Could not fetch standings for {selected_league['name']}")
-                        st.info("This might be due to:")
-                        st.markdown("""
-                        - API rate limit reached (100 requests/day on free tier)
-                        - League not available for 2024-25 season yet
-                        - Network connectivity issues
-                        
-                        Try again in a few minutes or check the API dashboard.
+                        st.warning(f"⚠️ No data available for {league_name} - {selected_season_label}")
+                        st.info("""
+                        **To get standings:**
+                        1. Click the "🔄 Update Database" button in the sidebar
+                        2. Wait for data to download
+                        3. Standings will appear automatically!
                         """)
+            else:
+                st.warning(f"⚠️ No data available for {league_name}")
+                st.info("""
+                **To get data:**
+                1. Click the "🔄 Update Database" button in the sidebar
+                2. Select leagues to download
+                3. Wait for download to complete
+                4. Refresh this page!
+                """)
         
-        except ImportError:
-            st.error("⚠️ API client not available. Please ensure api_client.py is in the scrapers folder.")
+        except ImportError as e:
+            st.error(f"⚠️ Standings calculator not available: {e}")
+            st.info("Please ensure standings_calculator.py is in the utils folder.")
         except Exception as e:
+            st.error(f"❌ Error calculating standings: {e}")
+            st.code(str(e))
             st.error(f"❌ Error: {e}")
             st.info("Make sure your API key is configured correctly in config.py")
     

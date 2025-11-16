@@ -4,17 +4,9 @@ Configuration file for Football Prediction System
 import os
 from pathlib import Path
 
-# API Configuration with Streamlit Secrets support
-try:
-    import streamlit as st
-    # Try to get from Streamlit secrets first, then environment variable
-    API_FOOTBALL_KEY = st.secrets.get("API_FOOTBALL_KEY", os.getenv('API_FOOTBALL_KEY', ''))
-except:
-    # Fallback if streamlit not available (during training/CLI usage)
-    API_FOOTBALL_KEY = os.getenv('API_FOOTBALL_KEY', '')
-
+# API Configuration
+API_FOOTBALL_KEY = os.getenv('API_FOOTBALL_KEY', 'a8921d581497ae9e08916eeb039cd1a3')
 API_FOOTBALL_BASE_URL = "https://v3.football.api-sports.io"
-API_FOOTBALL_RATE_LIMIT = 100
 
 # Project paths
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -36,7 +28,7 @@ LEAGUES = {
         'code': 'E0',
         'api_id': 39,
         'avg_goals': 2.8,
-        'seasons': ['2223', '2324', '2425', '2526']  # 2022-23 to 2025-26
+        'seasons': ['2324', '2425', '2526']  # Last 3 seasons including current 2025-26
     },
     'la_liga': {
         'name': 'La Liga',
@@ -44,7 +36,7 @@ LEAGUES = {
         'code': 'SP1',
         'api_id': 140,
         'avg_goals': 2.7,
-        'seasons': ['2223', '2324', '2425', '2526']
+        'seasons': ['2324', '2425', '2526']
     },
     'bundesliga': {
         'name': 'Bundesliga',
@@ -52,7 +44,7 @@ LEAGUES = {
         'code': 'D1',
         'api_id': 78,
         'avg_goals': 3.1,
-        'seasons': ['2223', '2324', '2425', '2526']
+        'seasons': ['2324', '2425', '2526']
     },
     'serie_a': {
         'name': 'Serie A',
@@ -60,7 +52,7 @@ LEAGUES = {
         'code': 'I1',
         'api_id': 135,
         'avg_goals': 2.6,
-        'seasons': ['2223', '2324', '2425', '2526']
+        'seasons': ['2324', '2425', '2526']
     },
     'ligue_1': {
         'name': 'Ligue 1',
@@ -68,7 +60,7 @@ LEAGUES = {
         'code': 'F1',
         'api_id': 61,
         'avg_goals': 2.7,
-        'seasons': ['2223', '2324', '2425', '2526']
+        'seasons': ['2324', '2425', '2526']
     },
     'scottish_premiership': {
         'name': 'Scottish Premiership',
@@ -76,7 +68,7 @@ LEAGUES = {
         'code': 'SC0',
         'api_id': 179,
         'avg_goals': 2.9,
-        'seasons': ['2223', '2324', '2425', '2526']
+        'seasons': ['2324', '2425', '2526']
     },
     'primeira_liga': {
         'name': 'Primeira Liga',
@@ -84,7 +76,7 @@ LEAGUES = {
         'code': 'P1',
         'api_id': 94,
         'avg_goals': 2.6,
-        'seasons': ['2223', '2324', '2425', '2526']
+        'seasons': ['2324', '2425', '2526']
     },
     'eredivisie': {
         'name': 'Eredivisie',
@@ -92,7 +84,7 @@ LEAGUES = {
         'code': 'N1',
         'api_id': 88,
         'avg_goals': 3.2,
-        'seasons': ['2223', '2324', '2425', '2526']
+        'seasons': ['2324', '2425', '2526']
     },
     'pro_league': {
         'name': 'Belgian Pro League',
@@ -100,12 +92,33 @@ LEAGUES = {
         'code': 'B1',
         'api_id': 144,
         'avg_goals': 2.8,
-        'seasons': ['2223', '2324', '2425', '2526']
+        'seasons': ['2324', '2425', '2526']
+    },
+    'eredivisie': {
+        'name': 'Eredivisie',
+        'country': 'Netherlands',
+        'code': 'N1',
+        'api_id': 88,
+        'avg_goals': 3.2,
+        'seasons': ['2122', '2223', '2324', '2425']
+    },
+    'pro_league': {
+        'name': 'Belgian Pro League',
+        'country': 'Belgium',
+        'code': 'B1',
+        'api_id': 144,
+        'avg_goals': 2.8,
+        'seasons': ['2122', '2223', '2324', '2425']
     }
 }
 
 # URLs for data sources
 FOOTBALL_DATA_UK_BASE_URL = "https://www.football-data.co.uk"
+
+# API-Football configuration (optional)
+API_FOOTBALL_KEY = os.getenv('API_FOOTBALL_KEY', '')
+API_FOOTBALL_BASE_URL = "https://v3.football.api-sports.io"
+API_FOOTBALL_RATE_LIMIT = 100
 
 # Model configuration
 MODEL_PARAMS = {
@@ -123,8 +136,6 @@ MODEL_PARAMS = {
 FORM_MATCHES = 5
 H2H_MATCHES = 5
 MIN_MATCHES_FOR_PREDICTION = 5
-MIN_MATCHES_FOR_STATS = 5  # Minimum matches needed to calculate team statistics
-FORM_WINDOW = 5  # Number of recent matches to consider for form
 
 # Prediction thresholds
 HIGH_CONFIDENCE_THRESHOLD = 0.65
