@@ -29,23 +29,29 @@ class APIFootballClient:
             Dictionary with standings data
         """
         url = f"{self.base_url}/standings"
-        params = {
-            'league': league_id,
-            'season': season
-        }
         
-        try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+        # Try current season first, then fall back to previous season
+        seasons_to_try = [season, season - 1]
+        
+        for try_season in seasons_to_try:
+            params = {
+                'league': league_id,
+                'season': try_season
+            }
             
-            if data.get('response') and len(data['response']) > 0:
-                return data['response'][0]
-            return None
-            
-        except Exception as e:
-            print(f"Error fetching standings for league {league_id}: {e}")
-            return None
+            try:
+                response = requests.get(url, headers=self.headers, params=params, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                
+                if data.get('response') and len(data['response']) > 0:
+                    return data['response'][0]
+            except Exception as e:
+                if try_season == seasons_to_try[-1]:
+                    print(f"Error fetching standings for league {league_id}, season {try_season}: {e}")
+                continue
+        
+        return None
     
     def get_standings_dataframe(self, league_id: int, season: int = 2024) -> Optional[pd.DataFrame]:
         """
