@@ -87,17 +87,55 @@ def load_models():
             st.session_state.predictor.load_models()
     return st.session_state.predictor
 
-def get_teams_in_league(league_name: str):
-    """Get list of teams in a league"""
+def get_teams_in_league(league_name: str, season: str = None):
+    """
+    Get list of teams in a league for a specific season
+    
+    Args:
+        league_name: Name of the league
+        season: Season code (e.g., '2526'). If None, gets teams from most recent season
+    
+    Returns:
+        List of team names
+    """
     db = st.session_state.db
+    
+    if season is None:
+        # Get most recent season for this league
+        season_query = """
+            SELECT season 
+            FROM matches m
+            JOIN leagues l ON m.league_id = l.league_id
+            WHERE l.league_name = ?
+            GROUP BY season
+            ORDER BY season DESC
+            LIMIT 1
+        """
+        season_result = db.execute_query(season_query, (league_name,))
+        if season_result:
+            season = season_result[0][0]
+        else:
+            # Fallback to all teams if no season found
+            query = """
+                SELECT DISTINCT t.team_name 
+                FROM teams t
+                JOIN leagues l ON t.league_id = l.league_id
+                WHERE l.league_name = ?
+                ORDER BY t.team_name
+            """
+            results = db.execute_query(query, (league_name,))
+            return [row[0] for row in results]
+    
+    # Get teams that played in this specific season
     query = """
         SELECT DISTINCT t.team_name 
         FROM teams t
         JOIN leagues l ON t.league_id = l.league_id
-        WHERE l.league_name = ?
+        JOIN matches m ON (m.home_team_id = t.team_id OR m.away_team_id = t.team_id)
+        WHERE l.league_name = ? AND m.season = ?
         ORDER BY t.team_name
     """
-    results = db.execute_query(query, (league_name,))
+    results = db.execute_query(query, (league_name, season))
     return [row[0] for row in results]
 
 def get_database_stats():
