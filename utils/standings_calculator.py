@@ -1,6 +1,7 @@
 """
-Live League Standings Calculator
+Live League Standings Calculator - FIXED VERSION
 Calculates current standings from database matches
+Correctly counts each match only once (not twice!)
 """
 import sqlite3
 import pandas as pd
@@ -15,24 +16,13 @@ class StandingsCalculator:
         self.db_path = Path(db_path)
         
     def get_current_season(self, league_name: str) -> str:
-        """
-        Get the most recent season with matches for a league
-        
-        Args:
-            league_name: Name of the league
-            
-        Returns:
-            Season code (e.g., '2526' for 2025-26)
-        """
+        """Get the most recent season with matches for a league"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Get the most recent season that has matches
         query = """
         SELECT DISTINCT m.season
         FROM matches m
-        JOIN teams ht ON m.home_team_id = ht.team_id
-        JOIN teams at ON m.away_team_id = at.team_id
         JOIN leagues l ON m.league_id = l.league_id
         WHERE l.league_name = ?
         ORDER BY m.season DESC
@@ -46,33 +36,16 @@ class StandingsCalculator:
         return result[0] if result else '2526'
     
     def format_season_display(self, season_code: str) -> str:
-        """
-        Format season code for display
-        
-        Args:
-            season_code: Season code like '2526'
-            
-        Returns:
-            Formatted string like '2025-26'
-        """
+        """Format season code for display"""
         if len(season_code) == 4:
             year1 = f"20{season_code[:2]}"
             year2 = season_code[2:]
             return f"{year1}-{year2}"
         else:
-            # Handle '2021' format
-            return f"{season_code[:4]}-{int(season_code[:4]) + 1}"
+            return f"{season_code[:4]}-{str(int(season_code[:4]) + 1)[-2:]}"
     
     def get_available_seasons(self, league_name: str) -> List[str]:
-        """
-        Get all available seasons for a league
-        
-        Args:
-            league_name: Name of the league
-            
-        Returns:
-            List of season codes
-        """
+        """Get all available seasons for a league"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -93,22 +66,16 @@ class StandingsCalculator:
     def calculate_standings(self, league_name: str, season: Optional[str] = None) -> pd.DataFrame:
         """
         Calculate standings for a league and season
-        
-        Args:
-            league_name: Name of the league
-            season: Season code (if None, uses current season)
-            
-        Returns:
-            DataFrame with standings
+        FIXED: Each match counted only once (not twice!)
         """
         if season is None:
             season = self.get_current_season(league_name)
         
         conn = sqlite3.connect(self.db_path)
         
-        # Get all matches for the league and season
+        # Get UNIQUE matches (DISTINCT on match_id to avoid duplicates)
         query = """
-        SELECT 
+        SELECT DISTINCT
             m.match_id,
             m.match_date,
             ht.team_name as home_team,
@@ -130,37 +97,40 @@ class StandingsCalculator:
         if df.empty:
             return pd.DataFrame()
         
-        # Calculate standings
+        # Get all unique teams
         teams = set(df['home_team'].unique()) | set(df['away_team'].unique())
         standings = []
         
         for team in teams:
+            # CRITICAL FIX: Filter matches where team appears (home OR away)
+            # Each match is counted only ONCE in the original dataframe
             home_matches = df[df['home_team'] == team]
             away_matches = df[df['away_team'] == team]
             
-            # Calculate stats
+            # Total matches played (sum of home + away appearances)
+            # This is correct because each match appears only once in df
             played = len(home_matches) + len(away_matches)
             
             # Home stats
             home_wins = len(home_matches[home_matches['result'] == 'H'])
             home_draws = len(home_matches[home_matches['result'] == 'D'])
             home_losses = len(home_matches[home_matches['result'] == 'A'])
-            home_gf = home_matches['home_goals'].sum()
-            home_ga = home_matches['away_goals'].sum()
+            home_gf = int(home_matches['home_goals'].sum())
+            home_ga = int(home_matches['away_goals'].sum())
             
             # Away stats
             away_wins = len(away_matches[away_matches['result'] == 'A'])
             away_draws = len(away_matches[away_matches['result'] == 'D'])
             away_losses = len(away_matches[away_matches['result'] == 'H'])
-            away_gf = away_matches['away_goals'].sum()
-            away_ga = away_matches['home_goals'].sum()
+            away_gf = int(away_matches['away_goals'].sum())
+            away_ga = int(away_matches['home_goals'].sum())
             
             # Total stats
             wins = home_wins + away_wins
             draws = home_draws + away_draws
             losses = home_losses + away_losses
-            gf = int(home_gf + away_gf)
-            ga = int(home_ga + away_ga)
+            gf = home_gf + away_gf
+            ga = home_ga + away_ga
             gd = gf - ga
             points = wins * 3 + draws
             
@@ -200,7 +170,7 @@ class StandingsCalculator:
                 'Form': ''.join(form)
             })
         
-        # Create DataFrame and sort by points, then GD, then GF
+        # Create DataFrame and sort
         standings_df = pd.DataFrame(standings)
         standings_df = standings_df.sort_values(
             by=['Points', 'GD', 'GF'], 
@@ -219,8 +189,10 @@ class StandingsCalculator:
         
         conn = sqlite3.connect(self.db_path)
         
+        # DISTINCT to avoid duplicates
         query = """
-        SELECT 
+        SELECT DISTINCT
+            m.match_id,
             ht.team_name as team,
             m.home_goals as gf,
             m.away_goals as ga,
@@ -280,8 +252,10 @@ class StandingsCalculator:
         
         conn = sqlite3.connect(self.db_path)
         
+        # DISTINCT to avoid duplicates
         query = """
-        SELECT 
+        SELECT DISTINCT
+            m.match_id,
             at.team_name as team,
             m.away_goals as gf,
             m.home_goals as ga,
@@ -335,24 +309,16 @@ class StandingsCalculator:
         return standings_df
     
     def get_form_table(self, league_name: str, season: Optional[str] = None, num_matches: int = 5) -> pd.DataFrame:
-        """
-        Get standings based only on recent form (last N matches)
-        
-        Args:
-            league_name: Name of the league
-            season: Season code
-            num_matches: Number of recent matches to consider
-            
-        Returns:
-            DataFrame with form-based standings
-        """
+        """Get standings based only on recent form (last N matches)"""
         if season is None:
             season = self.get_current_season(league_name)
         
         conn = sqlite3.connect(self.db_path)
         
+        # DISTINCT to avoid duplicates
         query = """
-        SELECT 
+        SELECT DISTINCT
+            m.match_id,
             m.match_date,
             ht.team_name as home_team,
             at.team_name as away_team,
