@@ -35,12 +35,18 @@ class StandingsCalculator:
     
     def format_season_display(self, season_code: str) -> str:
         """Format season code for display"""
+        # If already formatted (contains hyphen), return as-is
+        if '-' in season_code:
+            return season_code
+        
+        # Format 4-digit codes like "2425"
         if len(season_code) == 4:
             year1 = f"20{season_code[:2]}"
             year2 = season_code[2:]
             return f"{year1}-{year2}"
-        else:
-            return f"{season_code[:4]}-{str(int(season_code[:4]) + 1)[-2:]}"
+        
+        # Handle other formats
+        return season_code
     
     def get_available_seasons(self, league_name: str) -> List[str]:
         """Get all available seasons for a league"""
@@ -61,35 +67,23 @@ class StandingsCalculator:
         
         return seasons
     
-    def get_all_available_seasons(self) -> Dict[str, List[str]]:
+    def get_all_available_seasons(self, league_name: str = None) -> List[tuple]:
         """
-        Get all available seasons for all leagues
+        Get all available seasons for a specific league as tuples of (code, label)
+        
+        Args:
+            league_name: League name to get seasons for
         
         Returns:
-            Dictionary mapping league names to their available seasons
+            List of tuples: [(season_code, display_label), ...]
         """
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        if not league_name:
+            return []
         
-        query = """
-        SELECT DISTINCT l.league_name, m.season
-        FROM matches m
-        JOIN leagues l ON m.league_id = l.league_id
-        ORDER BY l.league_name, m.season DESC
-        """
+        seasons = self.get_available_seasons(league_name)
         
-        cursor.execute(query)
-        results = cursor.fetchall()
-        conn.close()
-        
-        # Organize by league
-        seasons_by_league = {}
-        for league_name, season in results:
-            if league_name not in seasons_by_league:
-                seasons_by_league[league_name] = []
-            seasons_by_league[league_name].append(season)
-        
-        return seasons_by_league
+        # Return as list of tuples: (code, formatted_display)
+        return [(season, self.format_season_display(season)) for season in seasons]
     
     def calculate_standings(self, league_name: str, season: Optional[str] = None) -> pd.DataFrame:
         """Calculate standings - each match counted only once"""
@@ -230,9 +224,9 @@ class StandingsCalculator:
             standings.append({
                 'Team': team,
                 'Played': played,
-                'Won': wins,
-                'Drawn': draws,
-                'Lost': losses,
+                'Home_W': wins,      # Changed from 'Won'
+                'Home_D': draws,     # Changed from 'Drawn'
+                'Home_L': losses,    # Changed from 'Lost'
                 'GF': gf,
                 'GA': ga,
                 'GD': gd,
@@ -240,6 +234,9 @@ class StandingsCalculator:
             })
         
         standings_df = pd.DataFrame(standings)
+        if standings_df.empty:
+            return standings_df
+            
         standings_df = standings_df.sort_values(
             by=['Points', 'GD', 'GF'],
             ascending=[False, False, False]
@@ -292,9 +289,9 @@ class StandingsCalculator:
             standings.append({
                 'Team': team,
                 'Played': played,
-                'Won': wins,
-                'Drawn': draws,
-                'Lost': losses,
+                'Away_W': wins,      # Changed from 'Won'
+                'Away_D': draws,     # Changed from 'Drawn'
+                'Away_L': losses,    # Changed from 'Lost'
                 'GF': gf,
                 'GA': ga,
                 'GD': gd,
@@ -302,6 +299,9 @@ class StandingsCalculator:
             })
         
         standings_df = pd.DataFrame(standings)
+        if standings_df.empty:
+            return standings_df
+            
         standings_df = standings_df.sort_values(
             by=['Points', 'GD', 'GF'],
             ascending=[False, False, False]
