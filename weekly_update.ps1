@@ -11,7 +11,7 @@ python check_duplicates.py
 
 Write-Host "📤 Pushing to GitHub..." -ForegroundColor Yellow
 git add -f data/football.db
-git add data/raw/*.csv  # ← ADDED THIS LINE
+git add data/raw/*.csv 
 $date = Get-Date -Format "dd/MM/yyyy"
 git commit -m "Weekly update: $date"
 git push

@@ -1,16 +1,12 @@
 @echo off
-echo ========================================
-echo   Football Prediction Web App
-echo ========================================
+title Football Predictor - Local Server
+cd /d C:\Users\Administrator\Desktop\Football_AI\football-predictor
 echo.
-echo Starting web application...
-echo Your browser will open automatically.
+echo ========================================================
+echo   ⚽ Starting Football Match Predictor
+echo ========================================================
 echo.
-echo To stop the app, press Ctrl+C
-echo ========================================
+echo 🚀 Starting server...
 echo.
-
-cd /d "%~dp0"
-streamlit run app/streamlit_app.py
-
-pause
+start "" "http://localhost:8501"
+python -m streamlit run app/streamlit_app.py
