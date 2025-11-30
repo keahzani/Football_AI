@@ -316,19 +316,15 @@ def main():
         
         st.divider()
         
-        # Update button
-        st.subheader("🔄 Update Data")
-        st.write("Download latest matches and retrain models")
+         # Info about updates
+        st.subheader("ℹ️ Data Updates")
+        st.info("""
+        **Updates are managed locally**
         
-        if st.button("🔄 Update Database", type="primary", use_container_width=True):
-            with st.spinner("Updating... This may take 10-15 minutes"):
-                success = update_database()
-                if success:
-                    st.balloons()
-                    st.success("✅ Update complete!")
-                    st.rerun()
+        Data is updated weekly by the administrator using the local update script.
         
-        st.warning("⚠️ Update takes 10-15 minutes. Run weekly for best results.")
+        This ensures data quality and prevents duplicates.
+        """)
         
         st.divider()
         
