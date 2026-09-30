@@ -172,6 +172,10 @@ class StandingsCalculator:
             })
         
         standings_df = pd.DataFrame(standings)
+        
+        # NEW: Filter out teams that don't belong (wrong league/tier data)
+        standings_df = self._filter_active_teams(standings_df)
+        
         standings_df = standings_df.sort_values(
             by=['Points', 'GD', 'GF'], 
             ascending=[False, False, False]
@@ -403,3 +407,26 @@ class StandingsCalculator:
         form_df.insert(0, 'Rank', range(1, len(form_df) + 1))
         
         return form_df
+
+    def _filter_active_teams(self, df: pd.DataFrame, played_col: str = 'Played') -> pd.DataFrame:
+        """
+        Automatically filter out teams that don't belong in this league/season.
+        Uses the most common 'Played' count (mode) as the baseline for 
+        legitimate teams, since real league teams all play the same 
+        number of matches each gameweek.
+        """
+        if df.empty or len(df) <= 24:
+            return df
+    
+        # Find the most common number of matches played (the "real" gameweek count)
+        played_counts = df[played_col].value_counts()
+        most_common_played = played_counts.idxmax()
+    
+        # Keep teams whose match count is close to the most common value
+        # Allow +/- 1 to account for postponed/rescheduled matches
+        filtered_df = df[
+            (df[played_col] >= most_common_played - 1) & 
+            (df[played_col] <= most_common_played + 1)
+        ].copy()
+    
+        return filtered_df
